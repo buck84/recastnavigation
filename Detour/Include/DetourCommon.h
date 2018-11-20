@@ -211,6 +211,11 @@ inline float dtVlenSqr(const float* v)
 	return v[0]*v[0] + v[1]*v[1] + v[2]*v[2];
 }
 
+inline float dtVlen2DSqr(const float* v)
+{
+	return v[0] * v[0] + v[2] * v[2];
+}
+
 /// Returns the distance between two points.
 ///  @param[in]		v1	A point. [(x, y, z)]
 ///  @param[in]		v2	A point. [(x, y, z)]
@@ -321,6 +326,20 @@ inline float dtTriArea2D(const float* a, const float* b, const float* c)
 	const float acx = c[0] - a[0];
 	const float acz = c[2] - a[2];
 	return acx*abz - abx*acz;
+}
+
+inline float dtTriFootPoint(float* v, const float* a, const float* b, const float* c)
+{
+	float numerator = (a[0]-b[0])*(c[0]-b[0]) + (a[2] - b[2])*(c[2] - b[2]);
+	float denominator = (c[0] - b[0])*(c[0] - b[0]) + (c[2] - b[2])*(c[2] - b[2]);
+	if (dtAbs(denominator) < 0.001f)
+	{
+		dtVcopy(v, a);
+		return 0.0f;
+	}
+	float t = numerator / denominator;
+	dtVlerp(v, b, c, t);
+	return t;
 }
 
 /// Determines if two axis-aligned bounding boxes overlap.

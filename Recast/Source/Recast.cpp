@@ -77,22 +77,28 @@ rcHeightfield* rcAllocHeightfield()
 }
 
 rcHeightfield::rcHeightfield()
-	: width()
-	, height()
-	, bmin()
-	, bmax()
-	, cs()
-	, ch()
-	, spans()
-	, pools()
-	, freelist()
+	: width(0)
+	, height(0)
+	, cs(0)
+	, ch(0)
+	, spans(0)
+	, pools(0)
+	, freelist(0)
 {
+	memset(bmin, 0, sizeof(bmin));
+	memset(bmax, 0, sizeof(bmax));
 }
 
 rcHeightfield::~rcHeightfield()
 {
+	release();
+}
+
+void rcHeightfield::release()
+{
 	// Delete span array.
 	rcFree(spans);
+	//spans = 0;
 	// Delete span pools.
 	while (pools)
 	{
@@ -100,6 +106,7 @@ rcHeightfield::~rcHeightfield()
 		rcFree(pools);
 		pools = next;
 	}
+	freelist = 0;
 }
 
 void rcFreeHeightField(rcHeightfield* hf)
@@ -263,7 +270,7 @@ static void calcTriNormal(const float* v0, const float* v1, const float* v2, flo
 void rcMarkWalkableTriangles(rcContext* ctx, const float walkableSlopeAngle,
 							 const float* verts, int nv,
 							 const int* tris, int nt,
-							 unsigned char* areas)
+							 unsigned char* areas, char areaWalk)
 {
 	rcIgnoreUnused(ctx);
 	rcIgnoreUnused(nv);
@@ -278,7 +285,7 @@ void rcMarkWalkableTriangles(rcContext* ctx, const float walkableSlopeAngle,
 		calcTriNormal(&verts[tri[0]*3], &verts[tri[1]*3], &verts[tri[2]*3], norm);
 		// Check if the face is walkable.
 		if (norm[1] > walkableThr)
-			areas[i] = RC_WALKABLE_AREA;
+			areas[i] = areaWalk;
 	}
 }
 

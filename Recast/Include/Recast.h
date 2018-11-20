@@ -295,6 +295,7 @@ struct rcHeightfield
 {
 	rcHeightfield();
 	~rcHeightfield();
+	void release();
 
 	int width;			///< The width of the heightfield. (Along the x-axis in cell units.)
 	int height;			///< The height of the heightfield. (Along the z-axis in cell units.)
@@ -802,7 +803,7 @@ bool rcCreateHeightfield(rcContext* ctx, rcHeightfield& hf, int width, int heigh
 ///  @param[in]		nt					The number of triangles.
 ///  @param[out]	areas				The triangle area ids. [Length: >= @p nt]
 void rcMarkWalkableTriangles(rcContext* ctx, const float walkableSlopeAngle, const float* verts, int nv,
-							 const int* tris, int nt, unsigned char* areas); 
+							 const int* tris, int nt, unsigned char* areas, char areaWalk); 
 
 /// Sets the area id of all triangles with a slope greater than or equal to the specified value to #RC_NULL_AREA.
 ///  @ingroup recast

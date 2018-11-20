@@ -240,6 +240,15 @@ static int createBVTree(dtNavMeshCreateParams* params, dtBVNode* nodes, int /*nn
 	return curNode;
 }
 
+/*
+		  |      |
+     3    |  2   |   1
+----------|------|---------
+     4    |      |   0
+----------|------|---------
+	 5	  |  6   |   7
+		  |      |
+*/
 static unsigned char classifyOffMeshPoint(const float* pt, const float* bmin, const float* bmax)
 {
 	static const unsigned char XP = 1<<0;
@@ -382,7 +391,8 @@ bool dtCreateNavMeshData(dtNavMeshCreateParams* params, unsigned char** outData,
 		}
 	}
 
-	const int maxLinkCount = edgeCount + portalCount*2 + offMeshConLinkCount*2;
+	// *2 for jump edge link
+	const int maxLinkCount = (edgeCount + portalCount*2 + offMeshConLinkCount*2)*2;
 	
 	// Find unique detail vertices.
 	int uniqueDetailVertCount = 0;
@@ -457,7 +467,6 @@ bool dtCreateNavMeshData(dtNavMeshCreateParams* params, unsigned char** outData,
 	unsigned char* navDTris = dtGetThenAdvanceBufferPointer<unsigned char>(d, detailTrisSize);
 	dtBVNode* navBvtree = dtGetThenAdvanceBufferPointer<dtBVNode>(d, bvTreeSize);
 	dtOffMeshConnection* offMeshCons = dtGetThenAdvanceBufferPointer<dtOffMeshConnection>(d, offMeshConsSize);
-	
 	
 	// Store header
 	header->magic = DT_NAVMESH_MAGIC;

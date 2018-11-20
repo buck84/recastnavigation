@@ -108,6 +108,7 @@ enum dtStraightPathFlags
 	DT_STRAIGHTPATH_START = 0x01,				///< The vertex is the start position in the path.
 	DT_STRAIGHTPATH_END = 0x02,					///< The vertex is the end position in the path.
 	DT_STRAIGHTPATH_OFFMESH_CONNECTION = 0x04,	///< The vertex is the start of an off-mesh connection.
+	DT_STRAIGHTPATH_DROP = 0x08,
 };
 
 /// Options for dtNavMeshQuery::findStraightPath.
@@ -142,6 +143,7 @@ enum dtPolyTypes
 	DT_POLYTYPE_GROUND = 0,
 	/// The polygon is an off-mesh connection consisting of two vertices.
 	DT_POLYTYPE_OFFMESH_CONNECTION = 1,
+	DT_POLYTYPE_OFFMESH_DROP = 2,
 };
 
 
@@ -157,6 +159,7 @@ struct dtPoly
 	unsigned short verts[DT_VERTS_PER_POLYGON];
 
 	/// Packed data representing neighbor polygons references and flags for each edge.
+	/// for drop edge, save min and max in neis[0] and neis[1]
 	unsigned short neis[DT_VERTS_PER_POLYGON];
 
 	/// The user defined polygon flags.
@@ -202,6 +205,18 @@ struct dtLink
 	unsigned char side;				///< If a boundary link, defines on which side the link is.
 	unsigned char bmin;				///< If a boundary link, defines the minimum sub-edge area.
 	unsigned char bmax;				///< If a boundary link, defines the maximum sub-edge area.
+	//unsigned char type;				/// 0:normal 1:drop
+};
+
+struct dtDropData
+{
+	dtPolyRef ref;					///< Neighbour reference. (The neighbor that is linked to.)
+	unsigned int tileId;
+	unsigned int polyId;
+	unsigned int edgeId;
+	unsigned char bmin;
+	unsigned char bmax;
+	unsigned char lowDrop;
 };
 
 /// Bounding volume node.
@@ -252,6 +267,7 @@ struct dtMeshHeader
 	int polyCount;			///< The number of polygons in the tile.
 	int vertCount;			///< The number of vertices in the tile.
 	int maxLinkCount;		///< The number of allocated links.
+	int dropEdgeCount;
 	int detailMeshCount;	///< The number of sub-meshes in the detail mesh.
 	
 	/// The number of unique vertices in the detail mesh. (In addition to the polygon vertices.)
@@ -280,6 +296,7 @@ struct dtMeshTile
 	unsigned int linksFreeList;			///< Index to the next free link.
 	dtMeshHeader* header;				///< The tile header.
 	dtPoly* polys;						///< The tile polygons. [Size: dtMeshHeader::polyCount]
+	dtPoly* polysTotal;
 	float* verts;						///< The tile vertices. [Size: dtMeshHeader::vertCount]
 	dtLink* links;						///< The tile links. [Size: dtMeshHeader::maxLinkCount]
 	dtPolyDetail* detailMeshes;			///< The tile's detail sub-meshes. [Size: dtMeshHeader::detailMeshCount]
@@ -298,6 +315,8 @@ struct dtMeshTile
 		
 	unsigned char* data;					///< The tile data. (Not directly accessed under normal situations.)
 	int dataSize;							///< Size of the tile data.
+	unsigned char* dataDropMesh;
+	int dataSizeDropMesh;
 	int flags;								///< Tile flags. (See: #dtTileFlags)
 	dtMeshTile* next;						///< The next free tile, or the next tile in the spatial grid.
 private:
@@ -314,8 +333,15 @@ struct dtNavMeshParams
 	float orig[3];					///< The world space origin of the navigation mesh's tile space. [(x, y, z)]
 	float tileWidth;				///< The width of each tile. (Along the x-axis.)
 	float tileHeight;				///< The height of each tile. (Along the z-axis.)
+	float widthTile;
+	float heightTile;
+	float heightMax;
 	int maxTiles;					///< The maximum number of tiles the navigation mesh can contain.
 	int maxPolys;					///< The maximum number of polygons each tile can contain.
+	float jumpDistHori;
+	float jumpSafeHeight;
+	float climbHeight;
+	float agentRadius;
 };
 
 /// A navigation mesh based on tiles of convex polygons.
@@ -352,7 +378,7 @@ public:
 	///  @param[in]		lastRef		The desired reference for the tile. (When reloading a tile.) [opt] [Default: 0]
 	///  @param[out]	result		The tile reference. (If the tile was succesfully added.) [opt]
 	/// @return The status flags for the operation.
-	dtStatus addTile(unsigned char* data, int dataSize, int flags, dtTileRef lastRef, dtTileRef* result);
+	dtStatus addTile(unsigned char* data, int dataSize, int flags, dtTileRef lastRef, dtTileRef* result, unsigned char* dataDrop=0);
 	
 	/// Removes the specified tile from the navigation mesh.
 	///  @param[in]		ref			The reference of the tile to remove.
@@ -360,6 +386,9 @@ public:
 	///  @param[out]	dataSize	Size of the data associated with deleted tile.
 	/// @return The status flags for the operation.
 	dtStatus removeTile(dtTileRef ref, unsigned char** data, int* dataSize);
+
+	dtStatus loadTileDropMesh(const int tileId, unsigned char* data, int dataSize);
+	dtStatus loadTileDropMesh(dtMeshTile* tile, unsigned char* data, int dropNum);
 
 	/// @}
 
@@ -590,6 +619,11 @@ public:
 		return (unsigned int)(ref & polyMask);
 #endif
 	}
+
+	float getJumpDistHori() const { return m_params.jumpDistHori; }
+	float getJumpSafeHeight() const { return m_params.jumpSafeHeight; }
+	float getClimbHeight() const { return m_params.climbHeight; }
+	float getAgentRadius() const { return m_params.agentRadius; }
 
 	/// @}
 	

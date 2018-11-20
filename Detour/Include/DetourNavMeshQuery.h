@@ -126,17 +126,23 @@ public:
 /// @ingroup detour
 struct dtRaycastHit
 {
+	dtRaycastHit() {
+		ts = 0;
+		drop = false;
+	}
 	/// The hit parameter. (FLT_MAX if no wall hit.)
 	float t; 
 	
 	/// hitNormal	The normal of the nearest wall hit. [(x, y, z)]
 	float hitNormal[3];
+	float hitPos[3];
 
 	/// The index of the edge on the final polygon where the wall was hit.
 	int hitEdgeIndex;
 	
 	/// Pointer to an array of reference ids of the visited polygons. [opt]
 	dtPolyRef* path;
+	float* ts;
 	
 	/// The number of visited polygons. [opt]
 	int pathCount;
@@ -146,6 +152,7 @@ struct dtRaycastHit
 
 	///  The cost of the path until hit.
 	float pathCost;
+	int drop;	// 0: normal 1:drop low 2:drop high
 };
 
 /// Provides custom polygon query behavior.
@@ -323,7 +330,7 @@ public:
 	/// @returns The status flags for the query.
 	dtStatus findNearestPoly(const float* center, const float* halfExtents,
 							 const dtQueryFilter* filter,
-							 dtPolyRef* nearestRef, float* nearestPt) const;
+							 dtPolyRef* nearestRef, float* nearestPt, bool dist2d = false) const;
 	
 	/// Finds polygons that overlap the search box.
 	///  @param[in]		center		The center of the search box. [(x, y, z)]
@@ -391,7 +398,11 @@ public:
 	/// @returns The status flags for the query.
 	dtStatus raycast(dtPolyRef startRef, const float* startPos, const float* endPos,
 					 const dtQueryFilter* filter,
-					 float* t, float* hitNormal, dtPolyRef* path, int* pathCount, const int maxPath) const;
+		float* t, float* hitNormal, dtPolyRef* path, int* pathCount, const int maxPath, int* drop=0) const;
+
+	dtStatus raycast(dtPolyRef startRef, const float* startPos, const float* endPos,
+		const dtQueryFilter* filter,
+		float* t, float* ts, float* hitNormal, dtPolyRef* path, int* pathCount, const int maxPath) const;
 	
 	/// Casts a 'walkability' ray along the surface of the navigation mesh from 
 	/// the start position toward the end position.
@@ -408,6 +419,8 @@ public:
 					 const dtQueryFilter* filter, const unsigned int options,
 					 dtRaycastHit* hit, dtPolyRef prevRef = 0) const;
 
+	dtStatus moveJump(dtPolyRef startRef, const float* startPos, const float* endPos,
+		const dtQueryFilter* filter, float*t, float* hitPos, float* hitNormal, dtPolyRef* targetRef) const;
 
 	/// Finds the distance from the specified position to the nearest polygon wall.
 	///  @param[in]		startRef		The reference id of the polygon containing @p centerPos.
@@ -482,6 +495,7 @@ public:
 	///  @param[out]	height		The height at the surface of the polygon.
 	/// @returns The status flags for the query.
 	dtStatus getPolyHeight(dtPolyRef ref, const float* pos, float* height) const;
+	dtStatus getPolyNormal(dtPolyRef ref, const float* pos, float* normal) const;
 
 	/// @}
 	/// @name Miscellaneous Functions
@@ -504,6 +518,8 @@ public:
 	/// Gets the navigation mesh the query object is using.
 	/// @return The navigation mesh the query object is using.
 	const dtNavMesh* getAttachedNavMesh() const { return m_nav; }
+
+	dtStatus getLandPos(float* drop, float* land, dtPolyRef from, float* dp=0) const;
 
 	/// @}
 	
@@ -528,6 +544,10 @@ private:
 	dtStatus getEdgeMidPoint(dtPolyRef from, const dtPoly* fromPoly, const dtMeshTile* fromTile,
 							 dtPolyRef to, const dtPoly* toPoly, const dtMeshTile* toTile,
 							 float* mid) const;
+	dtStatus getEdgeDropPoint(float* pos, dtPolyRef from, const dtPoly* fromPoly, const dtMeshTile* fromTile,
+		dtPolyRef to, const dtPoly* toPoly, const dtMeshTile* toTile,
+		float* drop) const;
+
 	
 	// Appends vertex to a straight path
 	dtStatus appendVertex(const float* pos, const unsigned char flags, const dtPolyRef ref,

@@ -21,6 +21,9 @@
 #include "DetourNavMesh.h"
 #include "DetourCommon.h"
 #include "DetourNode.h"
+#if defined(_WIN32)
+#include <windows.h>
+#endif
 
 
 static float distancePtLine2d(const float* pt, const float* p, const float* q)
@@ -49,7 +52,8 @@ static void drawPolyBoundaries(duDebugDraw* dd, const dtMeshTile* tile,
 	{
 		const dtPoly* p = &tile->polys[i];
 		
-		if (p->getType() == DT_POLYTYPE_OFFMESH_CONNECTION) continue;
+		if (p->getType() == DT_POLYTYPE_OFFMESH_CONNECTION)
+			continue;
 		
 		const dtPolyDetail* pd = &tile->detailMeshes[i];
 		
@@ -164,7 +168,7 @@ static void drawMeshTile(duDebugDraw* dd, const dtNavMesh& mesh, const dtNavMesh
 	
 	// Draw outer poly boundaries
 	drawPolyBoundaries(dd, tile, duRGBA(0,48,64,220), 2.5f, false);
-
+	
 	if (flags & DU_DRAWNAVMESH_OFFMESHCONS)
 	{
 		dd->begin(DU_DRAW_LINES, 2.0f);
@@ -330,6 +334,88 @@ void duDebugDrawNavMeshBVTree(duDebugDraw* dd, const dtNavMesh& mesh)
 	}
 }
 
+static void getPolyrCenter(const dtPoly* poly, const dtMeshTile* tile, float* center)
+{
+	center[0] = 0;
+	center[1] = 0;
+	center[2] = 0;
+	for (int i = 0; i < poly->vertCount; ++i)
+	{
+		const float* v = &tile->verts[3*poly->verts[i]];
+		center[0] += (float)v[0];
+		center[1] += (float)v[1];
+		center[2] += (float)v[2];
+	}
+	center[0] /= poly->vertCount;
+	center[1] /= poly->vertCount;
+	center[2] /= poly->vertCount;
+}
+
+static void drawMeshTileLink(duDebugDraw* dd, const dtMeshTile* tile, const dtNavMesh* mesh)
+{
+	dd->begin(DU_DRAW_LINES, 2.0f);
+	unsigned int color = duRGBA(0, 0, 0, 196);
+	float pos[3], pos2[3];
+	for (int pi=0; pi<tile->header->polyCount; pi++)
+	{
+		dtPoly* poly = &tile->polys[pi];
+		getPolyrCenter(poly, tile, pos);
+		for (unsigned int i = poly->firstLink; i != DT_NULL_LINK; i = tile->links[i].next)
+		{
+			const dtLink* link = &tile->links[i];
+			dtPolyRef neighbourRef = tile->links[i].ref;
+			if (!neighbourRef)
+				continue;
+
+			const dtMeshTile* neighbourTile = 0;
+			const dtPoly* neighbourPoly = 0;
+			mesh->getTileAndPolyByRefUnsafe(neighbourRef, &neighbourTile, &neighbourPoly);
+
+			// 绘制邻接信息
+			getPolyrCenter(neighbourPoly, neighbourTile, pos2);
+			if (poly->getType() == DT_POLYTYPE_OFFMESH_CONNECTION)
+			{
+				color = duRGBA(255, 0, 0, 196);
+			}
+			else if (neighbourPoly->getType() == DT_POLYTYPE_OFFMESH_CONNECTION)
+			{
+				color = duRGBA(0, 255, 0, 196);
+			}
+			else
+				color = duRGBA(0, 0, 0, 196);
+			duAppendArc(dd, pos[0], pos[1], pos[2], pos2[0], pos2[1], pos2[2], 0.25f, 0.0f, 0.6f, color);
+			
+			// 绘制邻边
+			/*
+			const int v0 = poly->verts[link->edge];
+			const int v1 = poly->verts[(link->edge + 1) % (int)poly->vertCount];
+			float left[3];
+			float right[3];
+			dtVcopy(left, &tile->verts[v0 * 3]);
+			dtVcopy(right, &tile->verts[v1 * 3]);
+
+			color = duRGBA(0, 0, 0, 196);
+			if (link->side != 0xff)
+			{
+				// Unpack portal limits.
+				if (link->bmin != 0 || link->bmax != 255)
+				{
+					duAppendArc(dd, left[0], left[1], left[2], right[0], right[1], right[2], 0.25f, 0.0f, 0.6f, color);
+					const float s = 1.0f / 255.0f;
+					const float tmin = link->bmin*s;
+					const float tmax = link->bmax*s;
+					dtVlerp(left, &tile->verts[v0 * 3], &tile->verts[v1 * 3], tmin);
+					dtVlerp(right, &tile->verts[v0 * 3], &tile->verts[v1 * 3], tmax);
+					color = duRGBA(255, 0, 0, 196);
+				}
+			}
+			duAppendArc(dd, left[0], left[1], left[2], right[0], right[1], right[2], 0.25f, 0.0f, 0.6f, color);
+			*/
+		}
+	}
+	dd->end();
+}
+
 static void drawMeshTilePortal(duDebugDraw* dd, const dtMeshTile* tile)
 {
 	// Draw portals
@@ -411,6 +497,10 @@ void duDebugDrawNavMeshPortals(duDebugDraw* dd, const dtNavMesh& mesh)
 		const dtMeshTile* tile = mesh.getTile(i);
 		if (!tile->header) continue;
 		drawMeshTilePortal(dd, tile);
+		//if (GetAsyncKeyState('M')&0x8000)
+		{
+			drawMeshTileLink(dd, tile, &mesh);
+		}
 	}
 }
 
